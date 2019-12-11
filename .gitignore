@@ -1,0 +1,10 @@
+*.ipynb
+example.py
+*.ini
+~*.*
+.ipynb_checkpoints/
+.mypy_cache
+__pycache__
+*-stubs-master/
+stubs/
+.idea/
