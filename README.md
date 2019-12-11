@@ -4,7 +4,7 @@ Perform a numpy array transformation by giving an example.
 
 Examples:
 
-```
+```python
 >> from arrayConverter import X
 >> import numpy as np
 >> a = X('[1, 2, ...]', '[[1], [2], ...]') # [1, 2, ...] -> [[1], [2], ...]
@@ -16,7 +16,7 @@ y0 = |_x0_| + |_x1_| # |_x_| means floor(x)
 
 Multiple inputs or outputs are supported.
 
-```
+```python
 >> a = X(['[[1], [2], ...]', '[a, b, ...]'],  # multiple input in a list
          '[[[1], [a]], [[2], [b]], ...]; [a, 1, b, 2, ...]') # or seperate by ;
 >> a
@@ -42,12 +42,12 @@ out1: s = mod(-|_mod(x0, 2)_| + 1, 2)
 ```
 
 Functions can be applied.
-```
+```python
 >> a = X('[1, 2, 3, 4, ...]', '[[times(2)], [neg(1)], [times(4)], [neg(3)], ...]', 
          f={'neg': lambda x: -x, 'times': lambda x: 10*x})
 ```
 notice here the output with sequence [2, 1, 4, 3, ...]
-```
+```python
 >> a
 y0 = |_x0_| + |_x1_| - |_2*mod(x0, 2)_| + 1
 funcs: 
@@ -59,7 +59,7 @@ funcs:
 [[10], [ 0], [30], [-2], [50], [-4]]
 ```
 You can provide output shape by hand
-```
+```python
 >> a = X('[1, 2, ...]', '[[1, 1, ...], [2, 2, ...], ...]')
 >> a
 y0 = |_x0_|
@@ -72,7 +72,7 @@ y0 = |_x0_|
  [5 5 5]]
 ```
 And by providing parameter `extraShapes`...
-```
+```python
 >> a = X('[1, 2, 3, ...]', '[[1, 2], [2, 3], ...]')
 >> a(np.arange(4), extraShapes=(1, 0)))
 [[0 1]
