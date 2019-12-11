@@ -69,6 +69,7 @@ class IndexConverter: # mod(floor(linearCoeffs@xi) + bs + floor(indexModCoeffs@m
             repr0 = (
                 " + ".join([x for x in (linearItem, modItem, bItem) if x != ""])
                     .replace("+-", "-")
+                    .replace("+ -", "-")
                     .replace("+ |_-", "- |_")
                     .replace("|_-", "-|_")
                     .replace("1*", "")
@@ -80,7 +81,7 @@ class IndexConverter: # mod(floor(linearCoeffs@xi) + bs + floor(indexModCoeffs@m
                     "mod({}, {:.0f})".format(repr0, modValue) if modValue > 1 else repr0
                 )
             reprs.append(repr0)
-        return "\n".join(
+        return ", ".join(
             ["{}{:d} = {}".format(out, i, reprs[i]) for i in range(len(reprs))]
         )
 

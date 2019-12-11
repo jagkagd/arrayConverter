@@ -37,19 +37,22 @@ class X0:
         return self.converter(inArrs, outShape, extraShape, f2)
 
     def __repr__(self) -> str:
-        _repr = "\n".join(
-            [
-                self.insDispatcher.__repr__("s"),
-                "[\n"
-                + "\n".join(
-                    [
-                        "  in{}: {}".format(i, indexConverter)
-                        for (i, indexConverter) in enumerate(self.indexConverters)
-                    ]
-                )
-                + "\n]",
-            ]
-        )
+        if isinstance(self.insDispatcher, UnitIndexConverter):
+            _repr = self.indexConverters[0].__repr__()
+        else:
+            _repr = "\n".join(
+                [
+                    self.insDispatcher.__repr__("s"),
+                    "[\n"
+                    + "\n".join(
+                        [
+                            "  in{}: {}".format(i, indexConverter)
+                            for (i, indexConverter) in enumerate(self.indexConverters)
+                        ]
+                    )
+                    + "\n]",
+                ]
+            )
         if self.funcsMap != {}:
             _repr += "\n"
             _repr += "\n".join(
@@ -65,7 +68,7 @@ class X0:
                     + "\n]",
                 ]
             )
-        return _repr
+        return _repr.replace("\n\n", "\n").replace("s0", "s").replace("f0 = ", "")
 
     def getIndexMap(
             self, insIndex: List[InIndex], outIndex: OutIndex
@@ -395,6 +398,8 @@ class X:
                 ))
 
     def __repr__(self) -> str:
+        if len(self.converters) == 1:
+            return self.converters[0].__repr__()
         return "\n".join(
             [
                 "out{}: {}".format(i, converter)
