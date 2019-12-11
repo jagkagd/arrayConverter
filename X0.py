@@ -3,7 +3,7 @@
 
 from typing import Union
 
-from cytoolz.curried import valmap, groupby, compose, valfilter, identity, map
+from cytoolz.curried import valmap, groupby, compose, valfilter, identity, map, nth
 
 from array2Ast import InArray2Ast, OutArray2Ast
 from indexConverter import *
@@ -89,9 +89,9 @@ class X0:
                 if indice is not None
             ]
             if len(index) > 1:
-                raise Exception("The same variable in multiple inputs!")
+                raise Exception("Name {} appears in multiple inputs.".format(x))
             elif len(index) == 0:
-                raise Exception("Variable not found in inputs!")
+                raise Exception("Name {} not found in inputs.".format(x))
             else:
                 return index[0]
 
@@ -132,10 +132,10 @@ class X0:
             for i in range(len(inShape))
         ]
         genCoeffs = lambda func, func0=identity: [func0([func(c) for c in l]) for l in indiceConverters]
-        linearCoeffs = genCoeffs(lambda x: x[0])
-        bs = genCoeffs(lambda x: x[1], sum)
-        indexModCoeffs = genCoeffs(lambda x: x[2])
-        indexModValues = genCoeffs(lambda x: x[3])
+        linearCoeffs = genCoeffs(nth(0))
+        bs = genCoeffs(nth(1), sum)
+        indexModCoeffs = genCoeffs(nth(2))
+        indexModValues = genCoeffs(nth(3))
         return IndexConverter(linearCoeffs, bs, inShape, indexModCoeffs, indexModValues)
 
     def getIndiceConverter(self, indiceMap: Dict[Indice, int]) -> List[Sequence[float]]:
@@ -164,7 +164,7 @@ class X0:
                 if allSame(coeffsList):
                     return coeffsList[0]
                 else:
-                    raise Exception("Not a linear transform!")
+                    raise Exception("Not a linear transform.")
 
         return _createIndiceConverter(indiceMap, [])
 
@@ -188,7 +188,7 @@ class X0:
                 modValue = np.sum(np.array(period[0])[:, 0])
                 break
         else:
-            raise Exception("Not a linear transform!")
+            raise Exception("Not a linear transform.")
         a, b = self.getIndiceTransformCoeffs(outArr[::f], inArr[::f])[:2]
         c, d = self.getIndiceTransformCoeffs(
             outArr[:f], np.array(inArr[:f]) - (np.floor(a * np.array(outArr[:f])) + b)
@@ -212,12 +212,12 @@ class X0:
                 f2: Dict[str, Callable] = f,
         ) -> np.ndarray:
             if len(inArrs) != len(self.inAsts):
-                raise Exception("Wrong input arrays number!")
+                raise Exception("Wrong input arrays number. Expected {}, got {}.".format(len(self.inAsts), len(inArrs)))
             for i in range(len(inArrs)):
                 if not self.validShape(inArrs[i].shape, self.inAsts[i].getShape()):
-                    raise Exception("Wrong shape of input array for No.{}".format(i))
+                    raise Exception("Wrong shape of No.{} input array.".format(i))
             if not self.validShape(self.outAst.getShape(), outShape):
-                raise Exception("Wrong outShape for No.{}".format(self.num))
+                raise Exception("Wrong shape of No. {} output array.".format(self.num))
             outShape = self.getOutShape(inArrs, insDispatcher, indexConverters, outShape)
             outShape = self.mergeShape(outShape, extraShape)
             indexConverters2: List[IndexConverter] = [
@@ -233,7 +233,7 @@ class X0:
                     func = lambda x: x
                 else:
                     if whichFunc[0] not in f2:
-                        raise Exception("No function called {}".format(whichFunc[0]))
+                        raise Exception("No function called {}.".format(whichFunc[0]))
                     func = f[whichFunc[0]]
                 return func(
                     inArrs[whichIn][tuple(indexConverters2[whichIn](indice))]
@@ -306,7 +306,7 @@ class X0:
             i for (i, s) in enumerate(outShape) if (not np.any([st[0].hasLinearCoeffs(i) for st in sts])) and (s == -1)
         ]
         if len(neededDimPos) > 1:
-            raise Exception("Length needed for dim {}".format(neededDimPos))
+            raise Exception("Length needed for dim {} of output array.".format(neededDimPos))
 
         innerPts = InnerPtsDeque()
         innerPts.append(InnerPts(tuple([0] * len(outShape))))
@@ -330,13 +330,14 @@ class X0:
             if not isInner:
                 boundaryPts.append(pts)
         validBoundaryPts = list(filter(
-            lambda x: all([True if outShape[i] == -1 else x[i] + 1 == outShape[i] for i in range(len(outShape))]),
+            lambda x: all([True if outShape[i] == -1 else x.toShape()[i] == outShape[i] for i in range(len(outShape))]),
             boundaryPts))
         if len(validBoundaryPts) > 1:
-            raise Exception("Output shape needed!", validBoundaryPts)
-        shape = tuple(int(i + 1) for i in validBoundaryPts[0])
+            raise Exception("Multiple output shape valid. Output shape needed for No.{} array.".format(self.num),
+                            [pts.toShape() for pts in validBoundaryPts])
+        shape = validBoundaryPts[0].toShape()
         if not all([True if outShape[i] == -1 else shape[i] == outShape[i] for i in range(len(outShape))]):
-            raise Exception("Wrong given output shape.")
+            raise Exception("Wrong given output shape for No.{} array.".format(self.num))
         return shape
 
     @staticmethod

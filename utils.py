@@ -50,3 +50,6 @@ class InnerPts(list):
             InnerPts(tuple(a))
             for a in np.tile(np.array(self.pts), (self.len, 1)) + np.eye(self.len)
         ]
+
+    def toShape(self) -> Shape:
+        return tuple([int(i+1) for i in self.pts])
