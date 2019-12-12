@@ -1,8 +1,8 @@
 # arrayConverter
 
-Perform a numpy array transformation by giving an example.
+Perform a numpy array transformation by giving examples.
 
-Examples:
+## Usage
 
 ```python
 >> from arrayConverter import X
@@ -12,6 +12,14 @@ Examples:
 y0 = |_x0_| + |_x1_| # |_x_| means floor(x)
 >> a(np.arange(6)) # apply the convertion to a certain numpy array
 [[0], [1], [2], [3], [4], [5]]
+>> a(np.arange(6).reshape(3, -1)) # 1, 2, in [1, 2, ...] can also represent a smaller array
+[[[0 1]], [[2 3]], [[4 5]]]
+>> a = X('[[1, 2, ...], [3, 4, ...], ...]', '[[1, 3, ...], [2, 4, ...], ...]') # transpose
+>> a
+y0 = |_x1_|, y1 = |_x0_|
+>> a(np.arange(6).reshape(3, -1))
+[[0 2 4]
+ [1 3 5]]
 ```
 
 Multiple inputs or outputs are supported.
@@ -20,7 +28,7 @@ Multiple inputs or outputs are supported.
 >> a = X(['[[1], [2], ...]', '[a, b, ...]'],  # multiple input in a list
          '[[[1], [a]], [[2], [b]], ...]; [a, 1, b, 2, ...]') # or seperate by ;
 >> a
-out0: s = mod(|_x1_| + |_x2_|, 2) # s decides which input array
+out0: s = mod(|_x1_| + |_x2_|, 2) # s decides which input array to use
 [
   in0: y0 = |_x0_| + |_x1_| + |_x2_|, y1 = |_x1_| + |_x2_| # (x0, x1, x2) -> (y0, y1)
   in1: y0 = |_x0_| + |_x1_| + |_x2_| -1
@@ -30,7 +38,7 @@ out1: s = mod(-|_mod(x0, 2)_| + 1, 2)
   in0: y0 = |_0.50*x0_|, y1 = 0
   in1: y0 = |_0.50*x0_|
 ]
->> a([np.array([[i] for i in range(6)]), np.arange(10)]) # notice incompatible input shape
+>> a([np.array([[i] for i in range(6)]), np.arange(10)]) # incompatible input shape here
 (array([[[ 0], [ 0]],
        [[ 1], [-1]],
        [[ 2], [-2]],
@@ -80,3 +88,10 @@ And by providing parameter `extraShapes`...
  [2 3]
  [3 0]]
 ```
+
+## Notes:
+* Inefficient for large array.
+
+The output array is built by code like `np.array([input(indexConverter(index) for index <= outShape])`
+
+* Only support transformaton with formula y_j = floor(a_ij\*x_i) + b_j + floor(c_ij\*mod(x_i, d_ij))
