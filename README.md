@@ -13,16 +13,21 @@ $ pip install np-xarr
 ```python
 >> from npxarr import X
 >> import numpy as np
+
 >> a = X('[1, 2, ...]', '[[1], [2], ...]') # [1, 2, ...] -> [[1], [2], ...]
 >> a # print the equation from output index (x0, x1, ...) to input index (y0, y1, ...)
 y0 = |_x0_| + |_x1_| # |_x_| means floor(x)
+
 >> a(np.arange(6)) # apply the convertion to a certain numpy array
 [[0], [1], [2], [3], [4], [5]]
+
 >> a(np.arange(6).reshape(3, -1)) # 1, 2, in [1, 2, ...] can also represent a smaller array
 [[[0 1]], [[2 3]], [[4 5]]]
+
 >> a = X('[[1, 2, ...], [3, 4, ...], ...]', '[[1, 3, ...], [2, 4, ...], ...]') # transpose
 >> a
 y0 = |_x1_|, y1 = |_x0_|
+
 >> a(np.arange(6).reshape(3, -1))
 [[0 2 4]
  [1 3 5]]
@@ -44,7 +49,10 @@ out1: s = mod(-|_mod(x0, 2)_| + 1, 2)
   in0: y0 = |_0.50*x0_|, y1 = 0
   in1: y0 = |_0.50*x0_|
 ]
->> a([np.array([[i] for i in range(6)]), -np.arange(10)]) # incompatible input shape here
+```
+For incompatible input shapes, it will figure out the maximum valid output shape
+```
+>> a([np.array([[i] for i in range(6)]), -np.arange(10)])
 (array([[[ 0], [ 0]],
        [[ 1], [-1]],
        [[ 2], [-2]],
@@ -52,13 +60,14 @@ out1: s = mod(-|_mod(x0, 2)_| + 1, 2)
        [[ 4], [-4]],
        [[ 5], [-5]]]),
  array([ 0,  0, -1,  1, -2,  2, -3,  3, -4,  4, -5,  5, -6]))
-# it will figure out the maximum valid output shape
+
 >> a[1] # or just get the transformation for second output
 s = mod(-|_mod(x0, 2)_| + 1, 2)
 [
   in0: y0 = mod(|_0.50*x0_|, 6), y1 = 0
   in1: y0 = mod(|_0.50*x0_|, 10)
 ]
+
 >> a[1]([np.array([[i] for i in range(6)]), -np.arange(10)])
 [ 0,  0, -1,  1, -2,  2, -3,  3, -4,  4, -5,  5, -6]
 ```
@@ -77,9 +86,11 @@ funcs:
   times: mod(|_x1_| - |_mod(x0, 2)_| + 1, 2) = 1
   neg: mod(|_x1_| + |_mod(x0, 2)_|, 2) = 1
 ]
+
 >> a(np.arange(6))
 [[10], [ 0], [30], [-2], [50], [-4]]
 ```
+
 You can provide output shape by hand
 ```python
 >> a = X('[1, 2, ...]', '[[1, 1, ...], [2, 2, ...], ...]')
