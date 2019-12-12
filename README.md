@@ -105,14 +105,17 @@ And by providing parameter `extraShapes`...
 
 ## Notes:
 
+* It is recommended to write patterns with at least two periods, e.g. [1, 2, ...] -> [[1, 2], ...] will be inferred as [1, 2, 3, ...] -> [[1, 2], [2, 3], ...] rather than [[1, 2], [3, 4], ...]
+
 * Inefficient for large array
 
     The output array is built by code like `np.array([inArrays[indexConverter(index)] for index <= outShape])`
 
-* Only support transformaton with formula `$y_j = floor(a_ij*x_i) + b_j + floor(c_ij*mod(x_i, d_ij))$`
+* Only support transformation with formula `$y_j = floor(a_ij*x_i) + b_j + floor(c_ij*mod(x_i, d_ij))$`
 
 ## Todo
 
 - [ ] Test cover
+- [ ] Improve exception system
 - [ ] Support for illegal python variable name like `a.1`
 - [ ] Try to deduce possible transformation using naive numpy function from calculated equation
