@@ -5,9 +5,9 @@ from typing import Union
 
 from cytoolz.curried import valmap, groupby, compose, valfilter, identity, map, nth
 
-from array2Ast import InArray2Ast, OutArray2Ast
-from indexConverter import *
-from utils import *
+from .array2Ast import InArray2Ast, OutArray2Ast
+from .indexConverter import *
+from .utils import *
 
 
 class X0:

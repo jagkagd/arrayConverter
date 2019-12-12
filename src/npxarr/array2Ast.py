@@ -5,8 +5,8 @@ from typing import *
 from cytoolz import merge_with, itemmap
 from cytoolz import reduce
 
-from definedTypes import Indice, Shape, InIndex, OutIndex, IndexMap
-from utils import allSame
+from .definedTypes import Indice, Shape, InIndex, OutIndex, IndexMap
+from .utils import allSame
 
 
 class Array2Ast(ast.NodeTransformer):

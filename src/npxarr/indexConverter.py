@@ -2,8 +2,8 @@ from typing import Any
 
 import numpy as np
 
-from definedTypes import Indice, Shape
-from utils import pp, intDot
+from .definedTypes import Indice, Shape
+from .utils import pp, intDot
 
 
 class IndexConverter: # mod(floor(linearCoeffs@xi) + bs + floor(indexModCoeffs@mod(xi, indexModValues)), modValues)

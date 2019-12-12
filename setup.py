@@ -5,10 +5,10 @@ with open("README.md", "r") as fh:
 
 setuptools.setup(
     name="np-xarr", # Replace with your own username
-    version="0.1.0",
+    version="0.1.2",
     author="jagkagd",
     author_email="jagkagd@gmail.com",
-    description="Perform a numpy array transformation by giving the examples.",
+    description="Perform a numpy array transformation by giving examples.",
     long_description=long_description,
     long_description_content_type="text/markdown",
     url="https://github.com/jagkagd/np-xarr",

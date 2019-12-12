@@ -1,7 +1,7 @@
 from collections import deque
 from math import floor
 import numpy as np
-from definedTypes import *
+from .definedTypes import *
 from typing import List, Any
 
 

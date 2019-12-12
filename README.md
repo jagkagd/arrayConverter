@@ -1,11 +1,17 @@
-# arrayConverter
+# np-xarr
 
 Perform a numpy array transformation by giving examples.
+
+## Install
+
+```shell script
+$ pip install np-xarr
+```
 
 ## Usage
 
 ```python
->> from arrayConverter import X
+>> from npxarr import X
 >> import numpy as np
 >> a = X('[1, 2, ...]', '[[1], [2], ...]') # [1, 2, ...] -> [[1], [2], ...]
 >> a # print the equation from output index (x0, x1, ...) to input index (y0, y1, ...)
@@ -90,8 +96,14 @@ And by providing parameter `extraShapes`...
 ```
 
 ## Notes:
-* Inefficient for large array.
 
-The output array is built by code like `np.array([input(indexConverter(index) for index <= outShape])`
+* Inefficient for large array
 
-* Only support transformaton with formula y_j = floor(a_ij\*x_i) + b_j + floor(c_ij\*mod(x_i, d_ij))
+    The output array is built by code like `np.array([inArrays[indexConverter(index)] for index <= outShape])`
+
+* Only support transformaton with formula `$y_j = floor(a_ij*x_i) + b_j + floor(c_ij*mod(x_i, d_ij))$`
+
+## Todo
+
+- [ ] Support for illegal python variable name like `1.1` or `a.1`
+- [ ] Try to deduce possible transformation using naive numpy function from calculated equation
