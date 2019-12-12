@@ -44,7 +44,7 @@ out1: s = mod(-|_mod(x0, 2)_| + 1, 2)
   in0: y0 = |_0.50*x0_|, y1 = 0
   in1: y0 = |_0.50*x0_|
 ]
->> a([np.array([[i] for i in range(6)]), np.arange(10)]) # incompatible input shape here
+>> a([np.array([[i] for i in range(6)]), -np.arange(10)]) # incompatible input shape here
 (array([[[ 0], [ 0]],
        [[ 1], [-1]],
        [[ 2], [-2]],
@@ -53,6 +53,14 @@ out1: s = mod(-|_mod(x0, 2)_| + 1, 2)
        [[ 5], [-5]]]),
  array([ 0,  0, -1,  1, -2,  2, -3,  3, -4,  4, -5,  5, -6]))
 # it will figure out the maximum valid output shape
+>> a[1] # or just get the transformation for second output
+s = mod(-|_mod(x0, 2)_| + 1, 2)
+[
+  in0: y0 = mod(|_0.50*x0_|, 6), y1 = 0
+  in1: y0 = mod(|_0.50*x0_|, 10)
+]
+>> a[1]([np.array([[i] for i in range(6)]), -np.arange(10)])
+[ 0,  0, -1,  1, -2,  2, -3,  3, -4,  4, -5,  5, -6]
 ```
 
 Functions can be applied.
@@ -105,5 +113,6 @@ And by providing parameter `extraShapes`...
 
 ## Todo
 
-- [ ] Support for illegal python variable name like `1.1` or `a.1`
+- [ ] Test cover
+- [ ] Support for illegal python variable name like `a.1`
 - [ ] Try to deduce possible transformation using naive numpy function from calculated equation

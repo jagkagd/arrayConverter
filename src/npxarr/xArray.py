@@ -357,10 +357,8 @@ class X:
             f: Dict[str, Callable] = {},
             simpleParams=True
     ) -> None:
-        if isinstance(inArrs, str):
-            self.inArrs = inArrs.replace(" ", "").split(";")
-        if isinstance(outArrs, str):
-            self.outArrs = outArrs.replace(" ", "").split(";")
+        self.inArrs = inArrs.replace(" ", "").split(";") if isinstance(inArrs, str) else inArrs
+        self.outArrs = outArrs.replace(" ", "").split(";") if isinstance(outArrs, str) else outArrs
         self.f = f
         self.simpleParams = simpleParams
         self.converters = [
