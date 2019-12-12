@@ -143,4 +143,4 @@ And by providing parameter `extraShapes`...
 - [ ] Test cover
 - [ ] Improve exception system
 - [ ] Support for illegal python variable name like `a.1`
-- [ ] Try to deduce possible transformation using naive numpy function from calculated equation
+- [ ] Try to deduce possible transformation using native numpy function from calculated equation
