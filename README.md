@@ -56,8 +56,9 @@ out1: s = mod(-|_mod(x0, 2)_| + 1, 2)
   in1: y0 = |_0.50*x0_|
 ]
 ```
+
 For incompatible input shapes, it will figure out the maximum valid output shape
-```
+```python
 >> a([np.array([[i] for i in range(6)]), -np.arange(10)])
 
 (array([[[ 0], [ 0]],
