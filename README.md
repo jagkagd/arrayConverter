@@ -1,6 +1,6 @@
 # np-xarr
 
-Perform a numpy array transformation by giving examples.
+Perform a numpy array transformation intuitively by giving simple patterns.
 
 ## Install
 
