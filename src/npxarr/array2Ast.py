@@ -60,8 +60,18 @@ class Array2Ast(ast.NodeTransformer):
 
     def visit_Call(self, node: ast.Call) -> ast.Name:
         func = node.func.id
+        if not isinstance(node.args[0], (ast.Name, ast.Num)):
+            raise Exception('Illegal input array')
         param = self.visit(node.args[0])
         param.func = func
+        return ast.copy_location(param, node)
+
+    def visit_Starred(self, node: ast.Starred) -> ast.Name:
+        param = node.value
+        if not isinstance(param, (ast.Name, ast.Num)):
+            raise Exception('Illegal input array')
+        param = self.visit(param)
+        param.starred = True
         return ast.copy_location(param, node)
 
     @staticmethod
@@ -109,8 +119,11 @@ class OutArray2Ast(Array2Ast):
         self.index: OutIndex = {}
         self.funcs: Dict[str, List[Indice]] = {}
         self.funcsIndex: Dict[str, IndexMap] = {}
+        self.starred: List[Indice] = []
+        self.starredIndex: IndexMap = {}
         self.getIndex()
         self.getFuncsIndex()
+        self.getStarredIndex()
 
     def updateIndex(self, name: str, indice: Indice) -> None:
         self.index.update({indice: name})
@@ -127,3 +140,13 @@ class OutArray2Ast(Array2Ast):
             self.funcsIndex[key] = itemmap(
                 lambda kv, key=key: (kv[0], (int(kv[0] in self.funcs[key]),)), self.index
             )
+
+    def getStarredIndex(self):
+        for elt in ast.walk(self.node):
+            if isinstance(elt, ast.Name):
+                indice = self.getIndice(elt)
+                if hasattr(elt, "starred"):
+                    self.starred.append(indice)
+        self.starredIndex = itemmap(
+            lambda kv: (kv[0], (int(kv[0] in self.starred),)), self.index
+        )

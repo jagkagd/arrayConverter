@@ -6,7 +6,7 @@ from .definedTypes import Indice, Shape
 from .utils import pp, intDot
 
 
-class IndexConverter: # mod(floor(linearCoeffs@xi) + bs + floor(indexModCoeffs@mod(xi, indexModValues)), modValues)
+class IndexConverter:  # mod(floor(linearCoeffs@xi) + bs + floor(indexModCoeffs@mod(xi, indexModValues)), modValues)
     def __init__(
             self, linearCoeffs, bs, modValues=-1, indexModCoeffs=0, indexModValues=1
     ):
@@ -113,6 +113,20 @@ class UnitIndexConverter(IndexConverter):
 
 
 class ZeroIndexConverter(IndexConverter):
+    def __init__(self):
+        super().__init__([[]], [])
+
+    def __call__(self, outIndex: Indice) -> Indice:
+        return ()
+
+    def __repr__(self, out: str = "y") -> str:
+        return "{} = ()".format(out)
+
+    def hasLinearCoeffs(self, i: int) -> bool:
+        return False
+
+
+class NullIndexConverter(IndexConverter):
     def __init__(self):
         super().__init__([[]], [])
 
