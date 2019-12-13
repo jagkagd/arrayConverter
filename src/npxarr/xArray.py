@@ -8,6 +8,7 @@ from cytoolz.curried import valmap, groupby, compose, valfilter, identity, map, 
 from .array2Ast import InArray2Ast, OutArray2Ast
 from .indexConverter import *
 from .utils import *
+import pysnooper
 
 
 class X0:
@@ -20,10 +21,11 @@ class X0:
         self.f = f
         self.indexMap = self.getIndexMap([inAST.index for inAST in self.inAsts], self.outAst.index)
         self.funcsMap = self.getFuncsMap(self.outAst.funcsIndex)
+        self.starredMap = self.getStarredMap(self.outAst.starredIndex)
         self.indexConverters = self.getIndexConverters(self.indexMap)
         self.insDispatcher = self.getInsDispatcher(self.indexMap)
         self.converter = self.converterCreator(
-            self.insDispatcher, self.indexConverters, self.funcsMap, self.f
+            self.insDispatcher, self.indexConverters, self.funcsMap, self.starredMap, self.f
         )
 
     def __call__(
@@ -129,11 +131,13 @@ class X0:
             self, indexMap: IndexMap, inShape: Shape
     ) -> IndexConverter:
         if indexMap == {}:
-            return ZeroIndexConverter()
+            return NullIndexConverter()
         indiceConverters = [
             self.getIndiceConverter(valmap(lambda v, i=i: v[i], indexMap))
             for i in range(len(inShape))
         ]
+        if not indiceConverters:
+            return ZeroIndexConverter()
         genCoeffs = lambda func, func0=identity: [func0([func(c) for c in l]) for l in indiceConverters]
         linearCoeffs = genCoeffs(nth(0))
         bs = genCoeffs(nth(1), sum)
@@ -201,11 +205,15 @@ class X0:
     def getFuncsMap(self, funcsIndex: Dict[str, IndexMap]) -> Dict[str, IndexConverter]:
         return valmap(lambda v: self.createIndexConverter(v, (2,)), funcsIndex)
 
+    def getStarredMap(self, starredMap: IndexMap) -> IndexConverter:
+        return self.createIndexConverter(starredMap, (2,))
+
     def converterCreator(
             self,
             insDispatcher: IndexConverter,
             indexConverters: List[IndexConverter],
             funcsIndex: Dict[str, IndexConverter],
+            starredIndex: IndexConverter,
             f: Dict[str, Callable] = {},
     ) -> ArrayConverter:
         def arrayCreator(
@@ -239,13 +247,17 @@ class X0:
                         raise Exception("No function called {}.".format(whichFunc[0]))
                     func = f[whichFunc[0]]
                 return func(
-                    inArrs[whichIn][tuple(indexConverters2[whichIn](indice))]
+                    self.getInputElement(inArrs[whichIn], tuple(indexConverters2[whichIn](indice)))
                 )
 
-            eltsBlock = self._getEltsBlock(indice2Arr, (), outShape)
+            eltsBlock = self._getEltsBlock(indice2Arr, (), outShape, starredIndex)
             return np.array(eltsBlock)
 
         return arrayCreator
+
+    @staticmethod
+    def getInputElement(inArr, index):
+        return inArr if index == () else inArr[index]
 
     @staticmethod
     def validShape(knownShape: Shape, givenShape: Shape) -> bool:
@@ -261,15 +273,26 @@ class X0:
         )
 
     def _getEltsBlock(
-            self, foo: Callable[[Indice], Any], innerShape: Shape, outerShape: Shape
+            self, foo: Callable[[Indice], Any], innerShape: Shape, outerShape: Shape, starredIndex: IndexConverter
     ):
         if outerShape is ():
             return foo(innerShape)
         else:
-            return [
-                self._getEltsBlock(foo, (*innerShape, i), outerShape[1:])
-                for i in range(outerShape[0])
-            ]
+            if not any([starredIndex((*innerShape, i)) for i in range(outerShape[0])]):
+                return [
+                    self._getEltsBlock(foo, (*innerShape, i), outerShape[1:], starredIndex)
+                    for i in range(outerShape[0])
+                ]
+            else:
+                res = []
+                for i in range(outerShape[0]):
+                    if starredIndex((*innerShape, i)):
+                        for t in self._getEltsBlock(foo, (*innerShape, i), outerShape[1:], starredIndex):
+                            res.append(t)
+                    else:
+                        res.append(self._getEltsBlock(foo, (*innerShape, i), outerShape[1:], starredIndex))
+                return res
+
 
     @staticmethod
     def applyIndiceTransform(

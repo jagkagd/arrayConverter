@@ -1,5 +1,5 @@
 *.ipynb
-example.py
+src/example.py
 *.ini
 ~*.*
 .ipynb_checkpoints/
