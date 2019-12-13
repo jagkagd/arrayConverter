@@ -1,15 +1,27 @@
 from typing import Any
+from abc import ABC
 
 import numpy as np
+import pysnooper
 
-from .definedTypes import Indice, Shape
+from .definedTypes import Indice, Shape, IndexMap
 from .utils import pp, intDot
 
 
-class IndexConverter:  # mod(floor(linearCoeffs@xi) + bs + floor(indexModCoeffs@mod(xi, indexModValues)), modValues)
-    def __init__(
-            self, linearCoeffs, bs, modValues=-1, indexModCoeffs=0, indexModValues=1
-    ):
+class IndexConverter(ABC):
+    def __call__(self, outIndice: Indice) -> Indice:
+        return ()
+
+    def setModValues(self, modValues: Shape) -> Any:
+        return self
+
+    def nthBound(self, i: int) -> bool:
+        return False
+
+
+class LinearIndexConverter(IndexConverter):  # mod(floor(linearCoeffs@xi) + bs + floor(indexModCoeffs@mod(xi, indexModValues)), modValues)
+    def __init__(self, linearCoeffs, bs, modValues=-1, indexModCoeffs=0, indexModValues=1):
+        super().__init__()
         self.linearCoeffs = linearCoeffs
         self.bs = bs
         self.modValues = (
@@ -98,37 +110,34 @@ class IndexConverter:  # mod(floor(linearCoeffs@xi) + bs + floor(indexModCoeffs@
         res = linearSum + modSum + b
         return int(res % modValue) if modValue > 1 else int(res)
 
-    def hasLinearCoeffs(self, i: int) -> bool:
+    def nthBound(self, i: int) -> bool:
         return np.any(np.array(self.linearCoeffs)[:, i] != 0)
 
 
-class UnitIndexConverter(IndexConverter):
+class UnitIndexConverter(LinearIndexConverter):
     def __init__(self, outLen: int, inLen: int):
         super().__init__(np.zeros((inLen, outLen)).tolist(), [0] * inLen)
         self.inLen = inLen
         self.outLen = outLen
 
-    def __call__(self, outIndex: Indice) -> Indice:
+    def __call__(self, outIndice: Indice) -> Indice:
         return tuple([0] * self.inLen)
 
 
 class ZeroIndexConverter(IndexConverter):
     def __init__(self):
-        super().__init__([[]], [])
+        super().__init__()
 
-    def __call__(self, outIndex: Indice) -> Indice:
+    def __call__(self, outIndice: Indice) -> Indice:
         return ()
 
     def __repr__(self, out: str = "y") -> str:
         return "{} = ()".format(out)
 
-    def hasLinearCoeffs(self, i: int) -> bool:
-        return False
-
 
 class NullIndexConverter(IndexConverter):
     def __init__(self):
-        super().__init__([[]], [])
+        super().__init__()
 
     def __call__(self, outIndex: Indice) -> Indice:
         return ()
@@ -136,5 +145,17 @@ class NullIndexConverter(IndexConverter):
     def __repr__(self, out: str = "y") -> str:
         return "{} = _".format(out)
 
-    def hasLinearCoeffs(self, i: int) -> bool:
-        return False
+
+class FixIndexConverter(IndexConverter):
+    def __init__(self, indexMap: IndexMap):
+        super().__init__()
+        self.indexMap = indexMap
+
+    def __call__(self, outIndice: Indice) -> Indice:
+        return self.indexMap[outIndice]
+
+    def __repr__(self, out: str = "y") -> str:
+        return '{} = Fixed: '.format(out) + repr(self.indexMap)
+
+    def nthBound(self, i: int) -> bool:
+        return True
