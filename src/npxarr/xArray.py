@@ -8,7 +8,6 @@ from cytoolz.curried import valmap, groupby, compose, valfilter, identity, map, 
 from .array2Ast import InArray2Ast, OutArray2Ast
 from .indexConverter import *
 from .utils import *
-import pysnooper
 
 
 class X0:
@@ -105,8 +104,8 @@ class X0:
     def getInsDispatcher(self, indexMap: Dict[Indice, LabelInIndice]) -> IndexConverter:
         inLen = len(self.inAsts)
         if inLen == 1:
-            return UnitIndexConverter(len(self.outAst.getShape()), 1)
-        return self.createIndexConverter(valmap(lambda x: (x[0],), indexMap), (inLen,))
+            return UnitIndexConverter(len(self.outAst.shape), 1)
+        return self.createIndexConverter(valmap(lambda x: (x[0],), indexMap), (inLen,), self.outAst.shape)
 
     def getIndexConverters(
             self, indexMap: Dict[Indice, LabelInIndice]
@@ -124,14 +123,17 @@ class X0:
 
     def getIndexConverter(self, i: int, indexMap: IndexMap) -> IndexConverter:
         indexMap = {k: v for (k, v) in sorted(indexMap.items(), key=lambda kv: kv[0])}
-        inShape = self.inAsts[i].getShape()
-        return self.createIndexConverter(indexMap, inShape)
+        inShape = self.inAsts[i].shape
+        outShape = self.outAst.shape
+        return self.createIndexConverter(indexMap, inShape, outShape)
 
     def createIndexConverter(
-            self, indexMap: IndexMap, inShape: Shape
+            self, indexMap: IndexMap, inShape: Shape, outShape: Shape
     ) -> IndexConverter:
         if indexMap == {}:
             return NullIndexConverter()
+        if all([s != -1 for s in outShape]):
+            return FixIndexConverter(indexMap)
         indiceConverters = [
             self.getIndiceConverter(valmap(lambda v, i=i: v[i], indexMap))
             for i in range(len(inShape))
@@ -143,7 +145,7 @@ class X0:
         bs = genCoeffs(nth(1), sum)
         indexModCoeffs = genCoeffs(nth(2))
         indexModValues = genCoeffs(nth(3))
-        return IndexConverter(linearCoeffs, bs, inShape, indexModCoeffs, indexModValues)
+        return LinearIndexConverter(linearCoeffs, bs, inShape, indexModCoeffs, indexModValues)
 
     def getIndiceConverter(self, indiceMap: Dict[Indice, int]) -> List[Sequence[float]]:
         def _createIndiceConverter(
@@ -164,7 +166,7 @@ class X0:
                 coeffsList = [
                     _createIndiceConverter(
                         self.applyIndiceTransform(nextInnerIndiceMap, key, coeff),
-                        [*coeffs, coeff],
+                        [*coeffs, coeff]
                     )
                     for key, nextInnerIndiceMap in nextInnerIndiceMapGroup.items()
                 ]
@@ -203,10 +205,10 @@ class X0:
         return a, b + d, c, modValue
 
     def getFuncsMap(self, funcsIndex: Dict[str, IndexMap]) -> Dict[str, IndexConverter]:
-        return valmap(lambda v: self.createIndexConverter(v, (2,)), funcsIndex)
+        return valmap(lambda v: self.createIndexConverter(v, (2,), self.outAst.shape), funcsIndex)
 
     def getStarredMap(self, starredMap: IndexMap) -> IndexConverter:
-        return self.createIndexConverter(starredMap, (2,))
+        return self.createIndexConverter(starredMap, (2,), self.outAst.shape)
 
     def converterCreator(
             self,
@@ -225,16 +227,8 @@ class X0:
             if len(inArrs) != len(self.inAsts):
                 raise Exception("Wrong input arrays number. Expected {}, got {}.".format(len(self.inAsts), len(inArrs)))
             for i in range(len(inArrs)):
-                if not self.validShape(inArrs[i].shape, self.inAsts[i].getShape()):
+                if not self.validShape(inArrs[i].shape, self.inAsts[i].shape):
                     raise Exception("Wrong shape of No.{} input array.".format(i))
-            if not self.validShape(self.outAst.getShape(), outShape):
-                raise Exception("Wrong shape of No. {} output array.".format(self.num))
-            outShape = self.getOutShape(inArrs, insDispatcher, indexConverters, outShape)
-            outShape = self.mergeShape(outShape, extraShape)
-            indexConverters2: List[IndexConverter] = [
-                indexConverter.setModValues(inArr.shape)
-                for (indexConverter, inArr) in zip(indexConverters, inArrs)
-            ]
 
             def indice2Arr(indice: Indice) -> Union[np.ndarray, float]:
                 whichIn = insDispatcher(indice)[0]
@@ -249,6 +243,21 @@ class X0:
                 return func(
                     self.getInputElement(inArrs[whichIn], tuple(indexConverters2[whichIn](indice)))
                 )
+
+            outShape = self.getOutShape(inArrs, insDispatcher, indexConverters, outShape)
+            outShape = self.mergeShape(outShape, extraShape)
+
+            indexConverters2: List[IndexConverter] = [
+                indexConverter.setModValues(inArr.shape)
+                for (indexConverter, inArr) in zip(indexConverters, inArrs)
+            ]
+
+            if all([isinstance(indexConverter, FixIndexConverter) for indexConverter in indexConverters2]):
+                eltsBlock = self._getEltsBlock(indice2Arr, (), outShape, starredIndex)
+                return np.array(eltsBlock)
+
+            if not self.validShape(self.outAst.shape, outShape):
+                raise Exception("Wrong shape of No. {} output array.".format(self.num))
 
             eltsBlock = self._getEltsBlock(indice2Arr, (), outShape, starredIndex)
             return np.array(eltsBlock)
@@ -278,7 +287,7 @@ class X0:
         if outerShape is ():
             return foo(innerShape)
         else:
-            if not any([starredIndex((*innerShape, i)) for i in range(outerShape[0])]):
+            if not any([starredIndex((*innerShape, i))[0] for i in range(outerShape[0])]):
                 return [
                     self._getEltsBlock(foo, (*innerShape, i), outerShape[1:], starredIndex)
                     for i in range(outerShape[0])
@@ -286,13 +295,12 @@ class X0:
             else:
                 res = []
                 for i in range(outerShape[0]):
-                    if starredIndex((*innerShape, i)):
+                    if starredIndex((*innerShape, i))[0]:
                         for t in self._getEltsBlock(foo, (*innerShape, i), outerShape[1:], starredIndex):
                             res.append(t)
                     else:
                         res.append(self._getEltsBlock(foo, (*innerShape, i), outerShape[1:], starredIndex))
                 return res
-
 
     @staticmethod
     def applyIndiceTransform(
@@ -311,7 +319,9 @@ class X0:
             indexConverters: List[IndexConverter],
             outShape: Shape,
     ) -> Shape:
-        knownOutShape = self.outAst.getShape()
+        knownOutShape = self.outAst.shape
+        if all([s != -1 for s in knownOutShape]):
+            return knownOutShape
         outShape = tuple(
             [max(knownOutShape[i], outShape[i]) for i in range(len(outShape))]
             + list(knownOutShape[len(outShape):])
@@ -326,10 +336,10 @@ class X0:
         As = genStOut(lambda i, s: [1 if i == j else 0 for j in range(len(outShape))])
         Cs = genStOut(lambda i, s: [0] * len(outShape))
         Ds = genStOut(lambda i, s: [1] * len(outShape))
-        stOut = (IndexConverter(As, bs, -1, Cs, Ds), b_ub)
+        stOut = (LinearIndexConverter(As, bs, -1, Cs, Ds), b_ub)
 
         neededDimPos = [
-            i for (i, s) in enumerate(outShape) if (not np.any([st[0].hasLinearCoeffs(i) for st in sts])) and (s == -1)
+            i for (i, s) in enumerate(outShape) if (not np.any([st[0].nthBound(i) for st in sts])) and (s == -1)
         ]
         if len(neededDimPos) > 1:
             raise Exception("Length needed for dim {} of output array.".format(neededDimPos))
