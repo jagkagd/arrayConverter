@@ -105,7 +105,7 @@ class X0:
         inLen = len(self.inAsts)
         if inLen == 1:
             return UnitIndexConverter(len(self.outAst.shape), 1)
-        return self.createIndexConverter(valmap(lambda x: (x[0],), indexMap), (inLen,), self.outAst.shape)
+        return self.createIndexConverter(valmap(lambda x: (x[0],), indexMap), (inLen,), self.outAst.shape, True)
 
     def getIndexConverters(
             self, indexMap: Dict[Indice, LabelInIndice]
@@ -121,35 +121,39 @@ class X0:
             for i in range(len(self.inAsts))
         ]
 
-    def getIndexConverter(self, i: int, indexMap: IndexMap) -> IndexConverter:
+    def getIndexConverter(self, i: int, indexMap: IndexMap, boole: bool = False) -> IndexConverter:
         indexMap = {k: v for (k, v) in sorted(indexMap.items(), key=lambda kv: kv[0])}
         inShape = self.inAsts[i].shape
         outShape = self.outAst.shape
-        return self.createIndexConverter(indexMap, inShape, outShape)
+        return self.createIndexConverter(indexMap, inShape, outShape, boole)
 
     def createIndexConverter(
-            self, indexMap: IndexMap, inShape: Shape, outShape: Shape
+            self, indexMap: IndexMap, inShape: Shape, outShape: Shape, boole: bool = False
     ) -> IndexConverter:
         if indexMap == {}:
             return NullIndexConverter()
-        if all([s != -1 for s in outShape]):
-            return FixIndexConverter(indexMap)
-        indiceConverters = [
-            self.getIndiceConverter(valmap(lambda v, i=i: v[i], indexMap))
-            for i in range(len(inShape))
-        ]
-        if not indiceConverters:
-            return ZeroIndexConverter()
-        genCoeffs = lambda func, func0=identity: [func0([func(c) for c in l]) for l in indiceConverters]
-        linearCoeffs = genCoeffs(nth(0))
-        bs = genCoeffs(nth(1), sum)
-        indexModCoeffs = genCoeffs(nth(2))
-        indexModValues = genCoeffs(nth(3))
-        return LinearIndexConverter(linearCoeffs, bs, inShape, indexModCoeffs, indexModValues)
+        try:
+            indiceConverters = [
+                self.getIndiceConverter(valmap(lambda v, i=i: v[i], indexMap), boole)
+                for i in range(len(inShape))
+            ]
+            if not indiceConverters:
+                return ZeroIndexConverter()
+            genCoeffs = lambda func, func0=identity: [func0([func(c) for c in l]) for l in indiceConverters]
+            linearCoeffs = genCoeffs(nth(0))
+            bs = genCoeffs(nth(1), sum)
+            indexModCoeffs = genCoeffs(nth(2))
+            indexModValues = genCoeffs(nth(3))
+            return LinearIndexConverter(linearCoeffs, bs, inShape, indexModCoeffs, indexModValues)
+        except Exception("Not a linear transform."):
+            if all([s != -1 for s in outShape]):
+                return FixIndexConverter(indexMap)
+            else:
+                raise Exception("Fail to find a transform.")
 
-    def getIndiceConverter(self, indiceMap: Dict[Indice, int]) -> List[Sequence[float]]:
+    def getIndiceConverter(self, indiceMap: Dict[Indice, int], boole: bool = False) -> List[Sequence[float]]:
         def _createIndiceConverter(
-                innerIndiceMap: Dict[Indice, int], coeffs: List[Sequence[float]]
+                innerIndiceMap: Dict[Indice, int], coeffs: List[Sequence[float]], boole: bool = False
         ) -> List[Sequence[float]]:
             if list(innerIndiceMap.keys())[0] is ():
                 return coeffs
@@ -161,7 +165,7 @@ class X0:
                     groupby(lambda kv: kv[0][0]))(innerIndiceMap.items())
                 outArr = list(innerIndiceMapGroup.keys())
                 inArr = list(valmap(lambda v: v[0][-1], innerIndiceMapGroup).values())
-                coeff = self.getIndiceTransformCoeffs(outArr, inArr)
+                coeff = self.getIndiceTransformCoeffs(outArr, inArr, boole)
                 nextInnerIndiceMapGroup: Dict[int, Dict[Indice, int]] = valmap(dict, innerIndiceMapGroup)
                 coeffsList = [
                     _createIndiceConverter(
@@ -175,16 +179,19 @@ class X0:
                 else:
                     raise Exception("Not a linear transform.")
 
-        return _createIndiceConverter(indiceMap, [])
+        return _createIndiceConverter(indiceMap, [], boole)
 
     def getIndiceTransformCoeffs(
-            self, outArr: List[int], inArr: List[int]
+            self, outArr: List[int], inArr: List[int], boole: bool = False
     ) -> Sequence[float]:  # (a, b, c, d, modValue) for (floor(a*x)+b+floor(c*mod(x, modValue))+d)
         points = np.array([outArr, inArr]).T
         l = len(points)
         if l == 1:
-            x, y = points[0]
-            return 1, y - x, 0, 1
+            if boole:
+                return 0, points[0][1], 0, 1
+            else:
+                x, y = points[0]
+                return 1, y - x, 0, 1
         diff = points[1:] - points[:-1]
         k = lambda p: p[1] / p[0]
         if all([k(diff[0]) == k(p) for p in diff]):
@@ -205,10 +212,10 @@ class X0:
         return a, b + d, c, modValue
 
     def getFuncsMap(self, funcsIndex: Dict[str, IndexMap]) -> Dict[str, IndexConverter]:
-        return valmap(lambda v: self.createIndexConverter(v, (2,), self.outAst.shape), funcsIndex)
+        return valmap(lambda v: self.createIndexConverter(v, (2,), self.outAst.shape, True), funcsIndex)
 
     def getStarredMap(self, starredMap: IndexMap) -> IndexConverter:
-        return self.createIndexConverter(starredMap, (2,), self.outAst.shape)
+        return self.createIndexConverter(starredMap, (2,), self.outAst.shape, True)
 
     def converterCreator(
             self,
@@ -239,7 +246,7 @@ class X0:
                 else:
                     if whichFunc[0] not in f2:
                         raise Exception("No function called {}.".format(whichFunc[0]))
-                    func = f[whichFunc[0]]
+                    func = f2[whichFunc[0]]
                 return func(
                     self.getInputElement(inArrs[whichIn], tuple(indexConverters2[whichIn](indice)))
                 )

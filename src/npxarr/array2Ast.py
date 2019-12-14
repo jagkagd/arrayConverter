@@ -2,7 +2,7 @@ import ast  # type: ignore
 from operator import add
 from typing import *
 
-from cytoolz import merge_with, itemmap
+from cytoolz import merge_with, itemmap, compose
 from cytoolz import reduce
 
 from .definedTypes import Indice, Shape, InIndex, OutIndex, IndexMap
