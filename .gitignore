@@ -1,5 +1,5 @@
 *.ipynb
-src/example.py
+example.py
 *.ini
 ~*.*
 .ipynb_checkpoints/
@@ -11,3 +11,4 @@ stubs/
 dist/
 build/
 *.egg-info/
+.tox/
