@@ -1,9 +1,8 @@
 #!/usr/bin/env python
 # coding: utf-8
-
 from typing import Union
 
-from cytoolz.curried import valmap, groupby, compose, valfilter, identity, map, nth
+from cytoolz.curried import valmap, groupby, compose, valfilter, identity, map, nth, reduce
 
 from .array2Ast import InArray2Ast, OutArray2Ast
 from .indexConverter import *
@@ -133,10 +132,9 @@ class X0:
         if indexMap == {}:
             return NullIndexConverter()
         try:
-            indiceConverters = [
-                self.getIndiceConverter(valmap(lambda v, i=i: v[i], indexMap), boole)
-                for i in range(len(inShape))
-            ]
+            indiceConverters = list(reduce(
+                lambda ls, i: ls + [self.getIndiceConverter(valmap(lambda v, i=i: v[i], indexMap), ls, boole)],
+                range(len(inShape)), [[(0, 0, 0, 1)]*len(outShape)]))[1:]
             if not indiceConverters:
                 return ZeroIndexConverter()
             genCoeffs = lambda func, func0=identity: [func0([func(c) for c in l]) for l in indiceConverters]
@@ -151,9 +149,12 @@ class X0:
             else:
                 raise Exception("Fail to find a transform.")
 
-    def getIndiceConverter(self, indiceMap: Dict[Indice, int], boole: bool = False) -> List[Sequence[float]]:
+    def getIndiceConverter(
+            self, indiceMap: Dict[Indice, int], ls: List[List[Sequence[float]]], boole: bool = False
+    ) -> List[Sequence[float]]:
         def _createIndiceConverter(
-                innerIndiceMap: Dict[Indice, int], coeffs: List[Sequence[float]], boole: bool = False
+                innerIndiceMap: Dict[Indice, int], coeffs: List[Sequence[float]], oi: int,
+                _ls: List[List[Sequence[float]]], _boole: bool = False
         ) -> List[Sequence[float]]:
             if list(innerIndiceMap.keys())[0] is ():
                 return coeffs
@@ -165,12 +166,12 @@ class X0:
                     groupby(lambda kv: kv[0][0]))(innerIndiceMap.items())
                 outArr = list(innerIndiceMapGroup.keys())
                 inArr = list(valmap(lambda v: v[0][-1], innerIndiceMapGroup).values())
-                coeff = self.getIndiceTransformCoeffs(outArr, inArr, boole)
+                coeff = self.getIndiceTransformCoeffs(outArr, inArr, oi, _ls, _boole)
                 nextInnerIndiceMapGroup: Dict[int, Dict[Indice, int]] = valmap(dict, innerIndiceMapGroup)
                 coeffsList = [
                     _createIndiceConverter(
                         self.applyIndiceTransform(nextInnerIndiceMap, key, coeff),
-                        [*coeffs, coeff]
+                        [*coeffs, coeff], oi + 1, _ls, _boole
                     )
                     for key, nextInnerIndiceMap in nextInnerIndiceMapGroup.items()
                 ]
@@ -179,10 +180,10 @@ class X0:
                 else:
                     raise Exception("Not a linear transform.")
 
-        return _createIndiceConverter(indiceMap, [], boole)
+        return _createIndiceConverter(indiceMap, [], 0, ls, boole)
 
     def getIndiceTransformCoeffs(
-            self, outArr: List[int], inArr: List[int], boole: bool = False
+            self, outArr: List[int], inArr: List[int], oi: int, ls: List[List[Sequence[float]]], boole: bool = False
     ) -> Sequence[float]:  # (a, b, c, d, modValue) for (floor(a*x)+b+floor(c*mod(x, modValue))+d)
         points = np.array([outArr, inArr]).T
         l = len(points)
@@ -190,8 +191,11 @@ class X0:
             if boole:
                 return 0, points[0][1], 0, 1
             else:
-                x, y = points[0]
-                return 1, y - x, 0, 1
+                if ls[-1][oi][0] == 0:
+                    x, y = points[0]
+                    return 1, y - x, 0, 1
+                else:
+                    return 0, 0, 0, 1
         diff = points[1:] - points[:-1]
         k = lambda p: p[1] / p[0]
         if all([k(diff[0]) == k(p) for p in diff]):
@@ -205,9 +209,9 @@ class X0:
                 break
         else:
             raise Exception("Not a linear transform.")
-        a, b = self.getIndiceTransformCoeffs(outArr[::f], inArr[::f])[:2]
+        a, b = self.getIndiceTransformCoeffs(outArr[::f], inArr[::f], oi, ls)[:2]
         c, d = self.getIndiceTransformCoeffs(
-            outArr[:f], np.array(inArr[:f]) - (np.floor(a * np.array(outArr[:f])) + b)
+            outArr[:f], np.array(inArr[:f]) - (np.floor(a * np.array(outArr[:f])) + b), oi, ls
         )[:2]
         return a, b + d, c, modValue
 
