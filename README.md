@@ -85,6 +85,44 @@ And by providing parameter `extraShapes`...
  [3 0]]
 ```
 
+## How np-xarr does
+
+When the pattern is given, e.g.,
+
+```python
+>> a = X('[a, b, c, ...]', '[[a, b], [b, c], ...]')
+```
+`X` will deduce the transformation equation between the input and output, and can be seen by
+```python
+>> a
+
+y0 = |_x0_| + |_x1_|
+```
+where `|_x0_|` means `floor(x0)`.
+The equation `y0 = |_x0_| + |_x1_|` build the relation between the output index `(x0, x1)` and the input index `(y0,)` as follows:
+
+output index (x0, x1) | item | equation (x0, x1) -> (y0, ) | index (y0, ) | input item |
+--------------------- | ---- | -------- | ------------------ | ---- |
+(0, 0) | a | 0 + 0 = 0 | (0, ) | a
+(0, 1) | b | 0 + 1 = 1 | (1, ) | b
+(1, 0) | b | 1 + 0 = 1 | (1, ) | b
+(1, 1) | c | 1 + 1 = 2 | (2, ) | c
+
+Another example:
+```python
+>> a = X('[a, b, ...]', '[a, a, b, b, ...]')
+>> a
+
+y0 = |_0.50*x0_|
+```
+
+output index (x0, ) | item | equation (x0, ) -> (y0, ) | input index (y0, ) | item |
+------------------- | ---- | -------- | ------------------ | ---- |
+(0, ) | a | floor(0.5*0) = 0 | (0, ) | a
+(1, ) | a | floor(0.5*1) = 0 | (0, ) | a
+(2, ) | b | floor(0.5*2) = 1 | (1, ) | b
+(3, ) | b | floor(0.5*3) = 2 | (1, ) | b
+
 ## Notes:
 
 * It is recommended to write patterns with at least two periods, e.g. [1, 2, ...] -> [[1, 2], ...] will be inferred as [1, 2, 3, ...] -> [[1, 2], [2, 3], ...] rather than [[1, 2], [3, 4], ...]
@@ -97,7 +135,5 @@ And by providing parameter `extraShapes`...
 
 ## Todo
 
-- [ ] Test cover
 - [ ] Improve exception system
-- [ ] Support for illegal python variable name like `a.1`
 - [ ] Try to deduce possible transformation using native numpy function from calculated equation
