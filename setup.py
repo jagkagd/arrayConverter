@@ -4,8 +4,8 @@ with open("README.md", "r") as fh:
     long_description = fh.read()
 
 setuptools.setup(
-    name="np-xarr", # Replace with your own username
-    version="0.1.4",
+    name="np-xarr",  # Replace with your own username
+    version="0.1.5",
     author="jagkagd",
     author_email="jagkagd@gmail.com",
     description="Perform a numpy array transformation by giving examples.",
