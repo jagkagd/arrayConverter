@@ -1,23 +1,28 @@
 #!/usr/bin/env python
 # coding: utf-8
-from typing import Union
+from typing import Union, Optional
 
 from cytoolz.curried import valmap, groupby, compose, valfilter, identity, map, nth, reduce
 
-from .array2Ast import InArray2Ast, OutArray2Ast
+from .array2Ast import InArray2Ast, OutArray2Ast, LabelOutArray2Ast
 from .indexConverter import *
 from .utils import *
 
 
 class X0:
     def __init__(
-            self, inArrs: List[str], outArr: str, f: Dict[str, Callable] = {}, num: int = 0
+            self, inArrs: Union[List[str], str], outArr: Optional[str] = None, f: Dict[str, Callable] = {}, num: int = 0
     ) -> None:
-        self.inAsts = [InArray2Ast(inArr) for inArr in inArrs]
-        self.outAst = OutArray2Ast(outArr)
         self.num = num
         self.f = f
-        self.indexMap = self.getIndexMap([inAST.index for inAST in self.inAsts], self.outAst.index)
+        if outArr is not None:
+            self.inAsts = [InArray2Ast(inArr) for inArr in inArrs]
+            self.outAst = OutArray2Ast(outArr)
+            self.indexMap = self.getIndexMap([inAST.index for inAST in self.inAsts], self.outAst.index)
+        else:
+            self.outAst = LabelOutArray2Ast(inArrs)
+            self.inAsts = self.outAst.getInAsts()
+            self.indexMap = self.outAst.getIndexMap()
         self.funcsMap = self.getFuncsMap(self.outAst.funcsIndex)
         self.starredMap = self.getStarredMap(self.outAst.starredIndex)
         self.indexConverters = self.getIndexConverters(self.indexMap)
@@ -134,7 +139,7 @@ class X0:
         try:
             indiceConverters = list(reduce(
                 lambda ls, i: ls + [self.getIndiceConverter(valmap(lambda v, i=i: v[i], indexMap), ls, boole)],
-                range(len(inShape)), [[(0, 0, 0, 1)]*len(outShape)]))[1:]
+                range(len(inShape)), [[(0, 0, 0, 1)] * len(outShape)]))[1:]
             if not indiceConverters:
                 return ZeroIndexConverter()
             genCoeffs = lambda func, func0=identity: [func0([func(c) for c in l]) for l in indiceConverters]
@@ -338,7 +343,7 @@ class X0:
             + list(knownOutShape[len(outShape):])
         )
 
-        sts = [(indexConverter.setModValues(-1), [i - 1 for i in inArr.shape[:len(inAST.getShape())]])
+        sts = [(indexConverter.setModValues(-1), [i - 1 for i in inArr.shape[:len(inAST.shape)]])
                for (indexConverter, inArr, inAST) in zip(indexConverters, inArrs, self.inAsts)]
 
         genStOut = lambda func: [func(i=i, s=s) for (i, s) in enumerate(outShape) if s != -1]
@@ -397,17 +402,23 @@ class X:
     def __init__(
             self,
             inArrs: Union[List[str], str],
-            outArrs: Union[List[str], str],
+            outArrs: Optional[Union[List[str], str]] = None,
             f: Dict[str, Callable] = {},
             simpleParams=True
     ) -> None:
         self.inArrs = inArrs.replace(" ", "").split(";") if isinstance(inArrs, str) else inArrs
-        self.outArrs = outArrs.replace(" ", "").split(";") if isinstance(outArrs, str) else outArrs
         self.f = f
         self.simpleParams = simpleParams
-        self.converters = [
-            X0(self.inArrs, outArr, f, i) for (i, outArr) in enumerate(self.outArrs)
-        ]
+        if outArrs is not None:
+            self.outArrs = outArrs.replace(" ", "").split(";") if isinstance(outArrs, str) else outArrs
+            self.converters = [
+                X0(self.inArrs, outArr, f, i) for (i, outArr) in enumerate(self.outArrs)
+            ]
+        else:
+            self.outArrs = self.inArrs  # TODO
+            self.converters = [
+                X0(inArr, outArrs, f, i) for (i, inArr) in enumerate(self.inArrs)
+            ]
 
     def __call__(
             self,

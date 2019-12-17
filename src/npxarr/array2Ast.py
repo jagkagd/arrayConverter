@@ -2,10 +2,9 @@ import ast  # type: ignore
 from operator import add
 from typing import *
 
-from cytoolz import merge_with, itemmap, compose
-from cytoolz import reduce
+from cytoolz import merge_with, itemmap, compose, reduce
 
-from .definedTypes import Indice, Shape, InIndex, OutIndex, IndexMap
+from .definedTypes import Indice, Shape, InIndex, OutIndex, IndexMap, LabelInIndice
 from .utils import allSame
 
 
@@ -98,7 +97,7 @@ class Array2Ast(ast.NodeTransformer):
             res.append(elt)
         newList.elts = res
         newList.length = (
-            -1 if isinstance(newList.elts[-1], ast.Ellipsis) else len(newList.elts)
+            -1 if (not newList.elts) or isinstance(newList.elts[-1], ast.Ellipsis) else len(newList.elts)
         )
         return ast.copy_location(newList, node)
 
@@ -150,3 +149,44 @@ class OutArray2Ast(Array2Ast):
         self.starredIndex = itemmap(
             lambda kv: (kv[0], (int(kv[0] in self.starred),)), self.index
         )
+
+
+class FakeInArray2Ast(InArray2Ast):
+    def __init__(self):
+        super().__init__('[]')
+        self.shape = None
+
+    def updateIndex(self, name: str, indice: Indice) -> None:
+        super().updateIndex(name, indice)
+        if self.shape is None:
+            self.shape = tuple([-1] * len(indice))
+        if len(self.shape) != len(indice):
+            raise Exception('Wrong input shape.')
+
+    def getShape(self) -> Shape:
+        return ()
+
+
+class LabelOutArray2Ast(OutArray2Ast):
+    def __init__(self, node: str):
+        self.inAsts: Dict[int, InArray2Ast] = {}
+        self.indexMap: Dict[Indice, LabelInIndice] = {}
+        super().__init__(node)
+
+    def getIndexMap(self) -> Dict[Indice, LabelInIndice]:
+        return self.indexMap
+
+    def getInAsts(self) -> List[InArray2Ast]:
+        num = max(list(self.inAsts.keys()))
+        return [self.inAsts.get(i, FakeInArray2Ast()) for i in range(num + 1)]
+
+    def updateIndex(self, name: str, indice: Indice) -> None:
+        self.index.update({indice: name})
+        numInAst = ord(name[0]) - ord('a')
+        indexInAst = tuple(map(lambda x: int(x), name[1:]))
+        self.indexMap.update({indice: (numInAst, indexInAst)})
+        if numInAst in self.inAsts:
+            self.inAsts[numInAst].updateIndex(name, indexInAst)
+        else:
+            self.inAsts[numInAst] = FakeInArray2Ast()
+            self.inAsts[numInAst].updateIndex(name, indexInAst)
