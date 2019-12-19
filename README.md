@@ -39,8 +39,8 @@ Multiple inputs or outputs are supported.
 ```python
 >> a = X(['[1, 2, ...]', '[a, b, ...]'],  # multiple input in a list
          '[1, a, 2, b, ...]; [[a, 1], [b, 2], ...]') # or seperate by ;
-# or >> a = X('[a0, b0, a1, b1, ...]; [[b1, a0], [b1, a1], ...]')
->> a([np.r_[1, 2, 3, 4, 5], np.r_[10, 20, 30]]) # for incompatible input shapes, it will figure out the maximum valid output shape
+# or >> a = X('[a0, b0, a1, b1, ...]; [[b0, a0], [b1, a1], ...]')
+>> a([np.r_[1, 2, 3, 4, 5], np.r_[10, 20, 30]]) # for incompatible input shapes, it can figure out the maximum valid output shape
 
 (array([ 1, 10,  2, 20,  3, 30,  4], dtype=int32), 
  array([[10,  1], [20,  2], [30,  3]], dtype=int32))
