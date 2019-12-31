@@ -1,8 +1,10 @@
 from collections import deque
 from math import floor
-import numpy as np
-from .definedTypes import *
 from typing import List, Any
+
+import numpy as np
+
+from .definedTypes import *
 
 
 def intDot(a, b) -> float:
@@ -23,6 +25,10 @@ def isint(val: float) -> str:
 
 def pp(fstr: str, val: float) -> str:
     return fstr.replace("flag", {"d": ".0f", "f": ".2f"}[isint(val)])
+
+
+def initParams(init, shapeLike):
+    return init * np.ones_like(np.array(shapeLike)) if isinstance(init, (int, float)) else init
 
 
 class InnerPtsDeque(deque):
@@ -52,4 +58,4 @@ class InnerPts(list):
         ]
 
     def toShape(self) -> Shape:
-        return tuple([int(i+1) for i in self.pts])
+        return tuple([int(i + 1) for i in self.pts])

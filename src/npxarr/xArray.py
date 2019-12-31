@@ -7,6 +7,7 @@ from cytoolz.curried import valmap, groupby, compose, valfilter, identity, map, 
 from .array2Ast import InArray2Ast, OutArray2Ast, LabelOutArray2Ast
 from .indexConverter import *
 from .utils import *
+from .definedException import AstSyntaxError, LinearError, TransformError
 
 
 class X0:
@@ -43,37 +44,40 @@ class X0:
 
     def __repr__(self) -> str:
         if isinstance(self.insDispatcher, UnitIndexConverter):
-            _repr = self.indexConverters[0].__repr__()
+            _repr = self.indexConverters[0].__repr__("y")
         else:
             _repr = "\n".join(
                 [
-                    self.insDispatcher.__repr__("s"),
-                    "[\n"
-                    + "\n".join(
+                    repr(self.insDispatcher),
+                    "[",
+                    "\n".join(
                         [
-                            "  in{}: {}".format(i, indexConverter)
+                            "  in{}: {}".format(i, indexConverter.__repr__("y"))
                             for (i, indexConverter) in enumerate(self.indexConverters)
                         ]
-                    )
-                    + "\n]",
+                    ),
+                    "]",
                 ]
             )
         if self.funcsMap != {}:
             _repr += "\n"
             _repr += "\n".join(
                 [
-                    "funcs: ",
-                    "[\n"
-                    + "\n".join(
+                    "funcs: [",
+                    "\n".join(
                         [
-                            "  {}: {} = 1".format(func, indexConverter.__repr__("f"))
+                            "  {}: {}".format(func, indexConverter.__repr__(suf="1"))
                             for (func, indexConverter) in self.funcsMap.items()
                         ]
-                    )
-                    + "\n]",
+                    ),
+                    "]",
                 ]
             )
-        return _repr.replace("\n\n", "\n").replace("s0", "s").replace("f0 = ", "")
+
+        if not isinstance(self.starredMap, UnitIndexConverter):
+            _repr += "\n"
+            _repr += "star: {}".format(self.starredMap.__repr__(suf="1"))
+        return _repr.replace("\n\n", "\n")
 
     def getIndexMap(
             self, insIndex: List[InIndex], outIndex: OutIndex
@@ -97,19 +101,18 @@ class X0:
                 if indice is not None
             ]
             if len(index) > 1:
-                raise Exception("Name {} appears in multiple inputs.".format(x))
+                raise AstSyntaxError("Name {} appears in multiple inputs.".format(x))
             elif len(index) == 0:
-                raise Exception("Name {} not found in inputs.".format(x))
+                raise AstSyntaxError("Name {} not found in inputs.".format(x))
             else:
                 return index[0]
 
         return _getCorrespondIndex
 
     def getInsDispatcher(self, indexMap: Dict[Indice, LabelInIndice]) -> IndexConverter:
-        inLen = len(self.inAsts)
-        if inLen == 1:
-            return UnitIndexConverter(len(self.outAst.shape), 1)
-        return self.createIndexConverter(valmap(lambda x: (x[0],), indexMap), (inLen,), self.outAst.shape, True)
+        return self.createIndexConverter(
+            valmap(lambda x: (x[0],), indexMap), (len(self.inAsts),), self.outAst.shape, True
+        )
 
     def getIndexConverters(
             self, indexMap: Dict[Indice, LabelInIndice]
@@ -136,6 +139,8 @@ class X0:
     ) -> IndexConverter:
         if indexMap == {}:
             return NullIndexConverter()
+        if boole and set(indexMap.values()) == {(0,)}:
+            return UnitIndexConverter(len(self.outAst.shape), 1)
         try:
             indiceConverters = list(reduce(
                 lambda ls, i: ls + [self.getIndiceConverter(valmap(lambda v, i=i: v[i], indexMap), ls, boole)],
@@ -147,12 +152,15 @@ class X0:
             bs = genCoeffs(nth(1), sum)
             indexModCoeffs = genCoeffs(nth(2))
             indexModValues = genCoeffs(nth(3))
-            return LinearIndexConverter(linearCoeffs, bs, inShape, indexModCoeffs, indexModValues)
-        except Exception("Not a linear transform."):
+            if boole:
+                return LinearIndiceConverter(linearCoeffs[0], bs[0], inShape[0], indexModCoeffs[0], indexModValues[0])
+            else:
+                return LinearIndexConverter(linearCoeffs, bs, inShape, indexModCoeffs, indexModValues)
+        except LinearError:
             if all([s != -1 for s in outShape]):
                 return FixIndexConverter(indexMap)
             else:
-                raise Exception("Fail to find a transform.")
+                raise TransformError("Fail to find a transform.")
 
     def getIndiceConverter(
             self, indiceMap: Dict[Indice, int], ls: List[List[Sequence[float]]], boole: bool = False
@@ -183,7 +191,7 @@ class X0:
                 if allSame(coeffsList):
                     return coeffsList[0]
                 else:
-                    raise Exception("Not a linear transform.")
+                    raise LinearError
 
         return _createIndiceConverter(indiceMap, [], 0, ls, boole)
 
@@ -213,7 +221,7 @@ class X0:
                 modValue = np.sum(np.array(period[0])[:, 0])
                 break
         else:
-            raise Exception("Not a linear transform.")
+            raise LinearError
         a, b = self.getIndiceTransformCoeffs(outArr[::f], inArr[::f], oi, ls)[:2]
         c, d = self.getIndiceTransformCoeffs(
             outArr[:f], np.array(inArr[:f]) - (np.floor(a * np.array(outArr[:f])) + b), oi, ls
@@ -241,10 +249,10 @@ class X0:
                 f2: Dict[str, Callable] = f,
         ) -> np.ndarray:
             if len(inArrs) != len(self.inAsts):
-                raise Exception("Wrong input arrays number. Expected {}, got {}.".format(len(self.inAsts), len(inArrs)))
+                raise ValueError("Wrong input arrays number. Expected {}, got {}.".format(len(self.inAsts), len(inArrs)))
             for i in range(len(inArrs)):
                 if not self.validShape(inArrs[i].shape, self.inAsts[i].shape):
-                    raise Exception("Wrong shape of No.{} input array.".format(i))
+                    raise ValueError("Wrong shape of No.{} input array.".format(i))
 
             def indice2Arr(indice: Indice) -> Union[np.ndarray, float]:
                 whichIn = insDispatcher(indice)[0]
@@ -254,7 +262,7 @@ class X0:
                     func = lambda x: x
                 else:
                     if whichFunc[0] not in f2:
-                        raise Exception("No function called {}.".format(whichFunc[0]))
+                        raise ValueError("No function called {}.".format(whichFunc[0]))
                     func = f2[whichFunc[0]]
                 return func(
                     self.getInputElement(inArrs[whichIn], tuple(indexConverters2[whichIn](indice)))
@@ -269,13 +277,13 @@ class X0:
             ]
 
             if all([isinstance(indexConverter, FixIndexConverter) for indexConverter in indexConverters2]):
-                eltsBlock = self._getEltsBlock(indice2Arr, (), outShape, starredIndex)
+                eltsBlock = self.buildEltsBlock(indice2Arr, (), outShape, starredIndex)
                 return np.array(eltsBlock)
 
             if not self.validShape(self.outAst.shape, outShape):
-                raise Exception("Wrong shape of No. {} output array.".format(self.num))
+                raise ValueError("Wrong shape of No. {} output array.".format(self.num))
 
-            eltsBlock = self._getEltsBlock(indice2Arr, (), outShape, starredIndex)
+            eltsBlock = self.buildEltsBlock(indice2Arr, (), outShape, starredIndex)
             return np.array(eltsBlock)
 
         return arrayCreator
@@ -297,25 +305,30 @@ class X0:
             ]
         )
 
-    def _getEltsBlock(
+    def buildEltsBlock(
             self, foo: Callable[[Indice], Any], innerShape: Shape, outerShape: Shape, starredIndex: IndexConverter
     ):
         if outerShape is ():
             return foo(innerShape)
+        if len(outerShape) > 1:
+            return [
+                self.buildEltsBlock(foo, (*innerShape, i), outerShape[1:], starredIndex)
+                for i in range(outerShape[0])
+            ]
         else:
             if not any([starredIndex((*innerShape, i))[0] for i in range(outerShape[0])]):
                 return [
-                    self._getEltsBlock(foo, (*innerShape, i), outerShape[1:], starredIndex)
+                    self.buildEltsBlock(foo, (*innerShape, i), outerShape[1:], starredIndex)
                     for i in range(outerShape[0])
                 ]
             else:
                 res = []
                 for i in range(outerShape[0]):
                     if starredIndex((*innerShape, i))[0]:
-                        for t in self._getEltsBlock(foo, (*innerShape, i), outerShape[1:], starredIndex):
+                        for t in self.buildEltsBlock(foo, (*innerShape, i), outerShape[1:], starredIndex):
                             res.append(t)
                     else:
-                        res.append(self._getEltsBlock(foo, (*innerShape, i), outerShape[1:], starredIndex))
+                        res.append(self.buildEltsBlock(foo, (*innerShape, i), outerShape[1:], starredIndex))
                 return res
 
     @staticmethod
@@ -358,7 +371,7 @@ class X0:
             i for (i, s) in enumerate(outShape) if (not np.any([st[0].nthBound(i) for st in sts])) and (s == -1)
         ]
         if len(neededDimPos) > 1:
-            raise Exception("Length needed for dim {} of output array.".format(neededDimPos))
+            raise ValueError("Length needed for dim {} of output array.".format(neededDimPos))
 
         innerPts = InnerPtsDeque()
         innerPts.append(InnerPts(tuple([0] * len(outShape))))
@@ -367,8 +380,11 @@ class X0:
         def st(x):
             whichIn = insDispatcher(x)[0]
             stConverter, stUp = sts[whichIn]
-            return np.all(np.array(stConverter(x)) <= np.array(stUp)) and np.all(
-                np.array(stConverter(x)) >= 0) and np.all(np.array(stOut[0](x)) <= np.array(stOut[1]))
+            return np.all(np.array(stConverter(x)) <= np.array(stUp)) and \
+                   np.all(np.array(stConverter(x)) >= 0) and \
+                   np.all(np.array(stOut[0](x)) <= np.array(stOut[1])) and \
+                   all([any([xi <= bdptsi for i, (xi, bdptsi) in enumerate(zip(x, bdpts)) if outShape[i] == -1]) for
+                        bdpts in boundaryPts])
 
         while innerPts:
             pts = innerPts[0]
@@ -381,15 +397,15 @@ class X0:
             innerPts.popleft()
             if not isInner:
                 boundaryPts.append(pts)
-        validBoundaryPts = list(filter(
-            lambda x: all([True if outShape[i] == -1 else x.toShape()[i] == outShape[i] for i in range(len(outShape))]),
-            boundaryPts))
+        isValidBoundaryPts = lambda x: all(
+            [True if outShape[i] == -1 else x.toShape()[i] == outShape[i] for i in range(len(outShape))])
+        validBoundaryPts = list(filter(isValidBoundaryPts, boundaryPts))
         if len(validBoundaryPts) > 1:
-            raise Exception("Multiple output shape valid. Output shape needed for No.{} array.".format(self.num),
+            raise ValueError("Multiple output shape valid. Output shape needed for No.{} array.".format(self.num),
                             [pts.toShape() for pts in validBoundaryPts])
         shape = validBoundaryPts[0].toShape()
         if not all([True if outShape[i] == -1 else shape[i] == outShape[i] for i in range(len(outShape))]):
-            raise Exception("Wrong given output shape for No.{} array.".format(self.num))
+            raise ValueError("Wrong given output shape for No.{} array.".format(self.num))
         return shape
 
     @staticmethod

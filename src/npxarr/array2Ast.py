@@ -5,6 +5,7 @@ from typing import *
 from cytoolz import merge_with, itemmap, compose, reduce
 
 from .definedTypes import Indice, Shape, InIndex, OutIndex, IndexMap, LabelInIndice
+from .definedException import AstSyntaxError
 from .utils import allSame
 
 
@@ -44,7 +45,7 @@ class Array2Ast(ast.NodeTransformer):
                 if allSame(shapes):
                     return shapes[0]
                 else:
-                    raise Exception("Illegal array shape")
+                    raise AstSyntaxError("Illegal array shape")
             else:
                 return outerShape
 
@@ -60,7 +61,7 @@ class Array2Ast(ast.NodeTransformer):
     def visit_Call(self, node: ast.Call) -> ast.Name:
         func = node.func.id
         if not isinstance(node.args[0], (ast.Name, ast.Num)):
-            raise Exception('Illegal input array')
+            raise AstSyntaxError('Illegal arguments for function {}.'.format(func))
         param = self.visit(node.args[0])
         param.func = func
         return ast.copy_location(param, node)
@@ -68,7 +69,7 @@ class Array2Ast(ast.NodeTransformer):
     def visit_Starred(self, node: ast.Starred) -> ast.Name:
         param = node.value
         if not isinstance(param, (ast.Name, ast.Num)):
-            raise Exception('Illegal input array')
+            raise Exception('Illegal unpacking item.')
         param = self.visit(param)
         param.starred = True
         return ast.copy_location(param, node)
@@ -81,7 +82,7 @@ class Array2Ast(ast.NodeTransformer):
             elif isinstance(node, ast.Name):
                 return (node.id, *attrs)
             else:
-                raise Exception("Illegal input elements")
+                raise AstSyntaxError("Illegal input elements")
 
         return ".".join(_attribute2id(node, ()))
 
@@ -161,7 +162,7 @@ class FakeInArray2Ast(InArray2Ast):
         if self.shape is None:
             self.shape = tuple([-1] * len(indice))
         if len(self.shape) != len(indice):
-            raise Exception('Wrong input shape.')
+            raise AstSyntaxError('Wrong input shape.')
 
     def getShape(self) -> Shape:
         return ()
